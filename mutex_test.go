@@ -45,7 +45,10 @@ func TestMutexExtend(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	expiries := getPoolExpiries(pools, mutex.name)
-	ok := mutex.Extend()
+	ok, err := mutex.Extend()
+	if err != nil {
+		t.Fatalf("Expected err == nil, got %q", err)
+	}
 	if !ok {
 		t.Fatalf("Expected ok == true, got %v", ok)
 	}
@@ -114,6 +117,33 @@ func TestMutexFailure(t *testing.T) {
 	defer mutex.Unlock()
 
 	assertAcquired(t, okayPools, mutex)
+}
+
+func TestValid(t *testing.T) {
+	pools := newMockPools(8, servers)
+	rs := New(pools)
+	key := "test-shared-lock"
+
+	mutex1 := rs.NewMutex(key, SetExpiry(time.Hour))
+	err := mutex1.Lock()
+	if err != nil {
+		t.Fatalf("Expected err != nil, got: %q", err)
+	}
+	assertAcquired(t, pools, mutex1)
+
+	ok, err := mutex1.Valid()
+	if err != nil {
+		t.Fatalf("Expected err != nil, got: %q", err)
+	}
+	if !ok {
+		t.Fatalf("Expected a valid mutex")
+	}
+
+	mutex2 := rs.NewMutex(key)
+	err = mutex2.Lock()
+	if err == nil {
+		t.Fatalf("Expected err == nil, got: %q", err)
+	}
 }
 
 func newMockPools(n int, servers []*tempredis.Server) []Pool {
